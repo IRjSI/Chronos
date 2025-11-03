@@ -14,8 +14,7 @@
         "./src/*"
       ]
     },
-    "ignoreDeprecations": "6.0",
-    
+
     /* Bundler mode */
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,
