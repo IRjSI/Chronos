@@ -2,7 +2,7 @@ import { Github } from "lucide-react";
 
 function Signin() {
   const handleGithubSignin = async () => {
-    window.location.href = "http://localhost:3000/api/v1/auth/signin";
+    window.location.href = `${import.meta.env.VITE_BACKEND_URL}/api/v1/auth/signin`;
   };
 
   // const handleGoogleSignin = () => {
