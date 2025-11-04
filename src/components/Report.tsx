@@ -15,7 +15,6 @@ import {
 } from "recharts";
 import { Card, CardContent } from "@/components/ui/card";
 import { Flame, Sparkle } from "lucide-react";
-import { getSummary } from "@/api/getSummary";
 import { useQuery } from "@tanstack/react-query";
 import { getAllReports } from "@/api/getAllReports";
 import ReportSkeleton from "./skeleton/ReportSkeleton";
