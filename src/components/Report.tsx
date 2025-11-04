@@ -14,60 +14,50 @@ import {
   CartesianGrid,
 } from "recharts";
 import { Card, CardContent } from "@/components/ui/card";
-import { getReport } from "@/api/report";
-import { getProgress } from "@/api/getProgress";
-import { getStreak } from "@/api/streakApi";
 import { Flame, Sparkle } from "lucide-react";
-import { getDailyReport } from "@/api/dailyReport";
 import { getSummary } from "@/api/getSummary";
+import { useQuery } from "@tanstack/react-query";
+import { getAllReports } from "@/api/getAllReports";
+import ReportSkeleton from "./skeleton/ReportSkeleton";
 
-interface IReport {
-  avgProgress: number;
-  completedTasks: number;
+interface IDailyStats {
+  date: Date;
   createdTasks: number;
-  totalProjects: number;
-  dailyStats: any[];
-  projectStats: any[];
-  streak: number;
+  completedTasks: number;
+}
+
+interface IProjectStats {
+  title: string;
+  completedTasks: number;
+  progress: number;
 }
 
 function WeeklyReport() {
-  const [report, setReport] = useState<IReport>({
-    avgProgress: 0,
-    completedTasks: 0,
-    createdTasks: 0,
-    totalProjects: 0,
-    dailyStats: [],
-    projectStats: [],
-    streak: 0,
+  const { data: report, isLoading, error } = useQuery({
+    queryKey: ["weeklyReport"],
+    queryFn: getAllReports,
   });
 
   const [summary, setSummary] = useState<string>("Generating your weekly insights...");
 
-  const updateReport = async () => {
-    const data = await getReport();
-    const dailyData = await getDailyReport();
-    const res = await getProgress();
-    const streak = await getStreak();
-    const report = { ...data, dailyStats: dailyData, projectStats: res, streak: streak };
-    setReport(report);
-    aiSummary(report);
-  };
-
-  const aiSummary = async (report: any) => {
-    try {
-      const res = await getSummary(report);
-      if (res?.summary) setSummary(res.summary);
-      else setSummary("Could not generate AI summary at the moment.");
-    } catch (error) {
-      console.error("AI Summary Error:", error);
-      setSummary("Error generating summary.");
-    }
-  };
-
   useEffect(() => {
-    updateReport();
-  }, []);
+    if (report) {
+      (async () => {
+        try {
+          // const res = await getSummary(report);
+          // setSummary(res?.summary ?? "Could not generate AI summary.");
+          setSummary("Could not generate AI summary.");
+        } catch {
+          setSummary("Error generating summary.");
+        }
+      })();
+    }
+  }, [report]);
+
+  if (isLoading) return (
+    <ReportSkeleton />
+  );
+  if (error) return <p className="text-destructive">Error loading data</p>;
 
   const completionRate = Math.round(
     (report.completedTasks / (report.createdTasks || 1)) * 100
@@ -148,7 +138,7 @@ function WeeklyReport() {
             </h3>
             <ResponsiveContainer width="100%" height={220}>
               <LineChart
-                data={report.dailyStats.map((s) => ({
+                data={report.dailyStats.map((s: IDailyStats) => ({
                   day: new Date(s.date).toLocaleDateString("en-US", { weekday: "short" }),
                   created: s.createdTasks,
                   completed: s.completedTasks,
@@ -210,7 +200,7 @@ function WeeklyReport() {
             </h3>
             <ResponsiveContainer width="100%" height={220}>
               <BarChart
-                data={report.projectStats.map((p) => ({
+                data={report.projectStats.map((p: IProjectStats) => ({
                   name: p.title,
                   progress: p.progress,
                 }))}

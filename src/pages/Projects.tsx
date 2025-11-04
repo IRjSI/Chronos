@@ -1,5 +1,4 @@
-import React, { useEffect, useState, type Key } from "react";
-import axios from "axios";
+import React, { useState, type Key } from "react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,12 +28,23 @@ import {
 import { Calendar28 } from "@/components/DatePicker";
 import { IconFolderCode } from "@tabler/icons-react";
 import { Progress } from "@/components/ui/progress";
-import { getProgress } from "@/api/getProgress";
+import { getHomeData } from "@/api/getHomeData";
+import { useAuth } from "@/context/AuthContext";
+import { useQuery } from "@tanstack/react-query";
+import { getTasks } from "@/api/getTasks";
+import { addProject } from "@/api/addProject";
+import { deleteProject } from "@/api/deleteProject";
+import { deleteTask } from "@/api/deleteTask";
+import { addProjectTask } from "@/api/addProjectTask";
+import { projectTaskDone } from "@/api/projectTaskDone";
+import { getProjectTasks } from "@/api/getProjectTasks";
+import ProjectsSkeleton from "@/components/skeleton/ProjectSkeleton";
 
 interface IProject {
   _id: Key;
   title: string;
   description?: string;
+  progress: number;
   startDate: string;
   endDate: string;
 }
@@ -48,10 +58,9 @@ interface ITask {
 }
 
 export default function Projects() {
+  const { user, loading } = useAuth();
 
-  const [projects, setProjects] = useState<IProject[]>([]);
   const [expandedProjectId, setExpandedProjectId] = useState<string | null>(null);
-  const [tasks, setTasks] = useState<Record<string, ITask[]>>({});
   const [project, setProject] = useState({
     title: "",
     description: "",
@@ -61,10 +70,13 @@ export default function Projects() {
   const [task, setTask] = useState({
     title: "",
     description: "",
+    category: "",
     dueDate: "",
   });
 
-  const [progressMap, setProgressMap] = useState<Record<string, number>>({});
+  // const [done, setDone] = useState<Boolean>(false);
+
+  const category = "all";
 
   // handle input change
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -77,120 +89,55 @@ export default function Projects() {
     setTask((prev) => ({ ...prev, [name]: value }));
   };
 
-  // get all projects
-  const getProjects = async () => {
-    try {
-      const res = await axios.get(`${import.meta.env.VITE_BACKEND_URL}/projects`, {
-        withCredentials: true,
-      });
-      setProjects(res.data.data || []);
-    } catch (err) {
-      console.error("Error fetching projects:", err);
-    }
+  const { data, refetch} = useQuery({
+    queryKey: ["homeData", category],
+    queryFn: () => getHomeData(category),
+    enabled: !!user && !loading
+  })
+
+  const home = data || {
+    projects: [],
+    completedTasks: 0,
   };
 
-  // get tasks for one project
-  const getTasks = async (projectId: string) => {
-    try {
-      const res = await axios.get(
-        `${import.meta.env.VITE_BACKEND_URL}/projects/tasks/${projectId}`,
-        { withCredentials: true }
-      );
-      setTasks((prev) => ({ ...prev, [projectId]: res.data.data.projectTasks || [] }));
+  const { projects } = home;
 
-      setProgressMap((prev) => ({
-        ...prev,
-        [projectId]: res.data.data.projectProgress.progress,
-      }));
-    } catch (err) {
-      console.error("Error fetching tasks:", err);
-    }
-  };
+  const { data: projectTasks = [] } = useQuery({
+    queryKey: ["projectTasks", expandedProjectId],
+    queryFn: () => getProjectTasks(expandedProjectId!),
+    enabled: !!expandedProjectId,
+  })
 
-  // add project
-  const addProject = async () => {
+  const addProjectCall = async () => {
     if (!project.title) return;
-    try {
-      await axios.post(`${import.meta.env.VITE_BACKEND_URL}/projects`, project, {
-        withCredentials: true,
-      });
-      await getProjects();
-      setProject({ title: "", description: "", startDate: "", endDate: "" });
-    } catch (err) {
-      console.error("Error adding project:", err);
-    }
+    await addProject(project);
+    await refetch();
+    setProject({ title: "", description: "", startDate: "", endDate: "" });
   };
 
   // delete project
-  const deleteProject = async (projectId: Key) => {
-    try {
-      await axios.delete(`${import.meta.env.VITE_BACKEND_URL}/projects/${projectId}`, {
-        withCredentials: true,
-      });
-      setProjects((prev) => prev.filter((p) => p._id !== projectId));
-    } catch (err) {
-      console.error("Error deleting project:", err);
-    }
+  const deleteProjectCall = async (id: Key) => {
+    await deleteProject(id);
+    await refetch();
   };
 
   // add task
-  const addTask = async (projectId: string) => {
+  const addTaskCall = async (projectId: string) => {
     if (!task.title) return;
-    try {
-      const res = await axios.post(
-        `${import.meta.env.VITE_BACKEND_URL}/projects/tasks/${projectId}`,
-        task,
-        { withCredentials: true }
-      );
-
-      setTask({ title: "", description: "", dueDate: "" });
-      setProgressMap((prev) => ({
-        ...prev,
-        [projectId]: res.data.data.progress,
-      }));
-      await getTasks(projectId);
-    } catch (err) {
-      console.error("Error adding task:", err);
-    }
+    await addProjectTask(task, projectId);
+    await refetch();
+    setTask({ title: "", description: "", category: "", dueDate: "" });
   };
 
   const taskDone = async (projectId: string, taskId: string) => {
-    const res = await axios.patch(`${import.meta.env.VITE_BACKEND_URL}/projects/tasks/${projectId}/${taskId}`, { status: "completed" }, {
-      withCredentials: true,
-    });
-    setProgressMap((prev) => ({
-      ...prev,
-      [projectId]: res.data.data.progress,
-    }));
-    await getTasks(projectId);
-  }
-
-  // delete task
-  const deleteTask = async (projectId: string, taskId: string) => {
-    try {
-      await axios.delete(
-        `${import.meta.env.VITE_BACKEND_URL}/projects/tasks/${taskId}`,
-        { withCredentials: true }
-      );
-      await getTasks(projectId);
-    } catch (err) {
-      console.error("Error deleting task:", err);
-    }
+    await projectTaskDone(projectId, taskId);
+    await refetch();
   };
 
-  // get progress for every project
-  const updateProgress = async () => {
-    try {
-      const res = await getProgress(); // array
-      for (let i = 0; i < res.length; i++) {
-        setProgressMap((prev) => ({
-          ...prev,
-          [res[i]._id]: res[i].progress,
-        }));
-      }
-    } catch (error) {
-      
-    }
+  // delete task
+  const deleteTaskCall = async (id: string) => {
+    await deleteTask(id);
+    await refetch();
   };
 
   // toggle project expansion
@@ -203,10 +150,11 @@ export default function Projects() {
     }
   };
 
-  useEffect(() => {
-    getProjects();
-    updateProgress();
-  }, []);
+  if (loading) {
+    return (
+      <ProjectsSkeleton />
+    );
+  }
 
   return (
     <main className="min-h-screen bg-slate-50 text-slate-900 p-6 md:p-10">
@@ -264,7 +212,7 @@ export default function Projects() {
                   }
                 />
               </div>
-              <Button className="mt-3 w-full" onClick={addProject}>
+              <Button className="mt-3 w-full" onClick={addProjectCall}>
                 Add Project
               </Button>
             </DialogContent>
@@ -291,7 +239,7 @@ export default function Projects() {
               </EmptyContent>
             </Empty>
           ) : (
-            projects.map((p) => (
+            projects.map((p: IProject) => (
               <motion.div
                 key={p._id}
                 initial={{ opacity: 0, y: 5 }}
@@ -314,17 +262,17 @@ export default function Projects() {
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <div>
-                            <Progress className="mt-2" value={progressMap[p._id as string] || 0} />
+                            <Progress className="mt-2" value={p.progress || 0} />
                           </div>
                         </TooltipTrigger>
                         <TooltipContent>
-                          <p>Progress: {progressMap[p._id as string] || 0}</p>
+                          <p>Progress: {p.progress || 0}</p>
                         </TooltipContent>
                       </Tooltip>
                     </TooltipProvider>
                   </div>
                   <Button
-                    onClick={() => deleteProject(p._id)}
+                    onClick={() => deleteProjectCall(p._id)}
                     className="bg-red-500/10 text-red-500 hover:bg-red-500/20"
                   >
                     Delete
@@ -334,9 +282,9 @@ export default function Projects() {
                 {/* Expanded Tasks */}
                 {expandedProjectId === p._id && (
                   <div className="mt-4 pl-4 border-l-2 border-slate-200">
-                    {tasks[p._id as string]?.length ? (
+                    {projectTasks?.length ? (
                       <ul className="space-y-2">
-                        {tasks[p._id as string].map((t) => (
+                        {projectTasks.map((t: ITask) => (
                           <li
                             key={t._id}
                             className={`flex justify-between items-center border p-2 rounded-lg ${t.status === "completed" && "border-green-200 bg-green-200/5"}`}
@@ -366,7 +314,7 @@ export default function Projects() {
                                   size="sm"
                                   className="text-red-500"
                                   onClick={() =>
-                                    deleteTask(p._id as string, t._id as string)
+                                    deleteTaskCall(t._id as string)
                                   }
                                 >
                                   Delete
@@ -419,7 +367,7 @@ export default function Projects() {
                         </div>
                         <Button
                           className="mt-3 w-full"
-                          onClick={() => addTask(p._id as string)}
+                          onClick={() => addTaskCall(p._id as string)}
                         >
                           Add Task
                         </Button>

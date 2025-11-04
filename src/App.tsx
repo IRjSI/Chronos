@@ -4,18 +4,11 @@ import Signin from './pages/Signin'
 import { useAuth } from './context/AuthContext';
 import { Route, Routes } from 'react-router';
 import Projects from './pages/Projects';
-import HomeSkeleton from './components/skeleton/HomeSkeleton';
 import WeeklyReport from './components/Report';
 
 function App() {
 
-  const { user, loading } = useAuth();
-
-  if (loading) {
-    return <>
-      <HomeSkeleton />
-    </>
-  }
+  const { user } = useAuth();
 
   return (
     <>

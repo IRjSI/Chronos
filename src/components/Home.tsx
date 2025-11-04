@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { useEffect, useState, type Key } from "react";
+import { useState, type Key } from "react";
 import { useAuth } from "../context/AuthContext";
 import {
   Dialog,
@@ -28,17 +28,15 @@ import { Calendar28 } from "./DatePicker";
 import { Link, NavLink } from "react-router-dom";
 import { Progress } from "@/components/ui/progress";
 import Streak from "./Streak";
-import { getStreak } from "@/api/streakApi";
-import { getTasks } from "@/api/getTasks";
 import { editTask } from "@/api/editTask";
-import { getProjects } from "@/api/getProject";
 import { addTask } from "@/api/addTask";
 import { addProject } from "@/api/addProject";
 import { deleteTask } from "@/api/deleteTask";
 import { deleteProject } from "@/api/deleteProject";
 import ProfileButton from "./ProfileButton";
-import { getCompletedTasks } from "@/api/completedTasks";
-import { getProgress } from "@/api/getProgress";
+import { getHomeData } from "@/api/getHomeData";
+import { useQuery } from "@tanstack/react-query";
+import HomeSkeleton from "./skeleton/HomeSkeleton";
 
 interface IState {
   _id: number;
@@ -61,20 +59,13 @@ export interface IProject {
   _id: Key;
   title: string;
   description?: string;
+  progress: number;
   startDate: string;
   endDate: string;
 }
 
 export default function Home() {
   const { user, loading } = useAuth();
-
-  const [tasks, setTasks] = useState<ITask[]>([]);
-  const [projects, setProjects] = useState<IProject[]>([]);
-  const [stats, setStats] = useState<IState[]>([]);
-
-  const [done, setDone] = useState(0);
-  const [total, setTotal] = useState(0);
-  const [streak, setStreak] = useState<number | null>(null);
 
   const [task, setTask] = useState({
     title: "",
@@ -90,87 +81,57 @@ export default function Home() {
     endDate: "",
   });
 
-  const [progress, setProgress] = useState<Record<string, number>>({});
+  const [category, setCategory] = useState("all");
+
+  const { data, isLoading, refetch} = useQuery({
+    queryKey: ["homeData", category],
+    queryFn: () => getHomeData(category),
+    enabled: !!user && !loading
+  })
+
+  const home = data || {
+    tasks: [],
+    projects: [],
+    completedTasks: 0,
+    streak: 0,
+  };
+
+  const { tasks, projects, completedTasks, streak } = home;
 
   const handleChange = (setState: any) => (e: any) => {
     const { name, value } = e.target;
     setState((prev: any) => ({ ...prev, [name]: value }));
   };
 
-  const [category, setCategory] = useState("all");
-  
-  const completedTasks = async () => {
-    try {
-      const done = await getCompletedTasks();
-      setDone(done);
-    } catch (error) {
-      
-    }
-  }
-
-  const getTasksCall = async () => {
-    try {
-      const res = await getTasks(category);
-      setTasks(res || []);
-      setTotal(res.length);
-    } catch (err) {
-      console.error("Error fetching tasks:", err);
-    }
-  };
-
   const taskDone = async (id: Key) => {
     await editTask(id);
-    getTasksCall();
-  }
-
-  const getProjectsCall = async () => {
-    try {
-      const res = await getProjects();
-      setProjects(res || []);
-    } catch (err) {
-      console.error("Error fetching projects:", err);
-    }
+    refetch();
   };
 
   const addTaskCall = async () => {
     if (!task.title) return;
-    try {
-      await addTask(task);
-      await getTasksCall();
-      setTask({ title: "", description: "", category: "", dueDate: "" });
-    } catch (err) {
-      console.error("Error adding task:", err);
-    }
+    await addTask(task);
+    await refetch();
+    setTask({ title: "", description: "", category: "", dueDate: "" });
   };
 
   const addProjectCall = async () => {
     if (!project.title) return;
-    try {
-      await addProject(project);
-      await getProjectsCall();
-      setProject({ title: "", description: "", startDate: "", endDate: "" });
-    } catch (err) {
-      console.error("Error adding project:", err);
-    }
+    await addProject(project);
+    await refetch();
+    setProject({ title: "", description: "", startDate: "", endDate: "" });
   };
 
   const deleteTaskCall = async (id: Key) => {
-    try {
-      await deleteTask(id);
-      setTasks((prev) => prev.filter((t) => t._id !== id));
-    } catch (err) {
-      console.error("Error deleting task:", err);
-    }
+    await deleteTask(id);
+    await refetch();
   };
 
   const deleteProjectCall = async (id: Key) => {
-    try {
-      await deleteProject(id);
-      setProjects((prev) => prev.filter((p) => p._id !== id));
-    } catch (err) {
-      console.error("Error deleting project:", err);
-    }
+    await deleteProject(id);
+    await refetch();
   };
+
 
   // const editTask = async (id: Key, data: any) => {
   //   try {
@@ -196,37 +157,16 @@ export default function Home() {
     return 1;
   };
 
-  const updateStreak = async () => {
-    const streak = await getStreak();
-    setStreak(streak);
-  }
-
-  const updateProgress = async () => {
-    const res = await getProgress();
-    for (let i = 0; i < res.length; i++) {
-      setProgress((prev) => ({...prev, [res[i]._id]: res[i].progress}))
-    }
-  }
-
-  useEffect(() => {
-    setStats([
-      { _id: 1, label: tasks.length > 1 ? "Tasks" : "Task", value: tasks.length },
-      { _id: 2, label: projects.length > 1 ? "Projects" : "Project", value: projects.length },
-      { _id: 3, label: "Streak", value: `${streak}${streak && streak >= 3 ? "🔥" : ""}` },
-    ]);
-  }, [streak, tasks, projects]);
-
-  useEffect(() => {
-    if (!loading && user) {
-      getTasksCall();
-      getProjectsCall();
-      updateStreak();
-      completedTasks();
-      updateProgress();
-    }
-  }, [user, loading, category, done, total]);
+  const stats: IState[] = [
+    { _id: 1, label: tasks.length > 1 ? "Tasks" : "Task", value: tasks.length },
+    { _id: 2, label: projects.length > 1 ? "Projects" : "Project", value: projects.length },
+    { _id: 3, label: "Streak", value: `${streak}${streak >= 3 ? "🔥" : ""}` },
+  ];
 
   if (!user) return <div className="p-6 text-slate-500">Please log in</div>;
+  if (isLoading) return (
+    <HomeSkeleton />
+  );
 
   return (
     <main className="min-h-screen bg-slate-50 text-slate-900 p-6 md:p-10">
@@ -350,7 +290,7 @@ export default function Home() {
             >
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-semibold">Tasks</h2>
-                <div>({done}/{total})</div>
+                <div>({completedTasks}/{tasks.length})</div>
                 <div className="text-sm text-slate-500">{tasks.length} items</div>
               </div>
 
@@ -358,7 +298,7 @@ export default function Home() {
                 {tasks.length === 0 ? (
                   <p className="text-xs text-slate-400">No tasks found.</p>
                 ) : (
-                  tasks.map((t) => (
+                  tasks.map((t: ITask) => (
                     <li
                       key={t._id}
                       className="relative flex items-center justify-between p-3 rounded-lg border border-slate-100 hover:bg-slate-50"
@@ -424,7 +364,7 @@ export default function Home() {
               {projects.length === 0 ? (
                 <p className="text-xs text-slate-400">No projects yet.</p>
               ) : (
-                projects.map((p) => (
+                projects.map((p: IProject) => (
                   <div key={p._id} className="flex items-center justify-between">
                     <div>
                       <Link to={"/projects"}>
@@ -436,11 +376,11 @@ export default function Home() {
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <div>
-                              <Progress className="mt-2" value={progress[p._id as string]} />
+                              <Progress className="mt-2" value={p.progress} />
                             </div>
                           </TooltipTrigger>
                           <TooltipContent>
-                            <p>Progress: {progress[p._id as string]}%</p>
+                            <p>Progress: {p.progress}%</p>
                           </TooltipContent>
                         </Tooltip>
                       </TooltipProvider>
