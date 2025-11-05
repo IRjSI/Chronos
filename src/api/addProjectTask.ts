@@ -11,6 +11,6 @@ interface ITask {
 }
 
 export async function addProjectTask(task: ITask, projectId: string) {
-    const res = await axiosClient.post(`/projects/tasks/${projectId}`, task);
-    return res.data.data;
+  const res = await axiosClient.post(`/projects/tasks/${projectId}`, task);
+  return res.data.data;
 }
