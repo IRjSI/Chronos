@@ -6,7 +6,7 @@ interface Props {
 }
 
 export function FilterSection({ category, setCategory }: Props) {
-  const categories = ["all", "work", "personal", "learning"];
+  const categories = ["all", "life", "health", "academic", "hobby"];
 
   return (
     <div className="flex items-center justify-between mb-6">

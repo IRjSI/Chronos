@@ -1,5 +1,12 @@
 import { NavLink } from "react-router-dom";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Calendar28 } from "@/components/DatePicker";
 import ProfileButton from "@/components/ProfileButton";
@@ -131,11 +138,22 @@ export function HeaderSection() {
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Define your Task</DialogTitle>
-              <DialogDescription>Kal kare so aaj kar...</DialogDescription>
+              <DialogDescription>Kal kare so aaj kar, aaj kare so ab</DialogDescription>
             </DialogHeader>
             <div className="grid gap-2">
               <Input name="title" placeholder="Task" value={task.title} onChange={handleChange(setTask)} />
               <Input name="description" placeholder="Description" value={task.description} onChange={handleChange(setTask)} />
+              <Select name="category" onValueChange={(value) => {setTask(prev => ({ ...prev, category: value}))}}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="category" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="life">life</SelectItem>
+                  <SelectItem value="health">health</SelectItem>
+                  <SelectItem value="academic">academic</SelectItem>
+                  <SelectItem value="hobby">hobby</SelectItem>
+                </SelectContent>
+              </Select>
               <Calendar28
                 label="Due Date"
                 value={task.dueDate}
